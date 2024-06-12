@@ -6,6 +6,7 @@ let time = 0
 let level = 1
 let levelStage = 1
 let game = true
+let powerUp = false
 const pressedControls = {
   right: false,
   left: false,
@@ -43,11 +44,12 @@ function random(min,max){
     }
     
 class Cloud {
-constructor(x,y,size){
+constructor(x,y,size,life){
   this.size = size
   this.y = y;
   this.x = x;
   this.backgroundColor = randClodBgColor()
+  this.life = life
   }
   draw(){
     dibujo.fillStyle = this.backgroundColor
@@ -61,16 +63,12 @@ constructor(x,y,size){
 
 //////////////////////////PROYECTILES ENEMIGOS /////////////////////////////////////////////
 let drops = []
-let currentDrops = []
 let nextDropTime = performance.now()
 const dropTimeRange = {
   low: 500,
-  up: 2000
+  up: 1000
 }
-const dropsDownDelta = 2
-function addCurrentRandom(){
-  return Math.floor(Math.random()*100)
-}
+const dropsDownDelta = 5
 class Drop{
   constructor(x){
     this.y = 0
@@ -84,9 +82,6 @@ class Drop{
 }
 function colision(drop){
   return drop.y>=character.y && drop.y+30<=character.y+character.height && drop.x>=character.x && drop.x+10<=character.x+character.width
-}
-function fall(drop){
-  return drop.y>hoja.height
 }
 function drawDrops(){
   drops = drops.flatMap((drop)=>{
@@ -114,7 +109,7 @@ function stackDrops(){
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 ///////////////////////////BASE DEL JUGADOR/////////////////////////////////////////////////////
-const playerMoveDelta = 2
+const playerMoveDelta = 5
 const character = {
   y:400,
   x:400,
@@ -142,7 +137,55 @@ function handlePlayerMovement(){
   if(pressedControls.up && character.y+playerMoveDelta>0) character.y-=playerMoveDelta
   if(pressedControls.left && character.x-playerMoveDelta>0) character.x-=playerMoveDelta
   if(pressedControls.right && character.x+playerMoveDelta<hoja.width-character.width) character.x+=playerMoveDelta
-  if(pressedControls.space && character.y>=hoja.height-character.height) character.y-=30
+}
+let shoots = []
+class shoot{
+  constructor(x,y,damage){
+    this.x = x
+    this.y = y
+    this.damage = damage
+    this.color = '#ff0'
+  }
+  draw(){
+    dibujo.fillStyle = this.color
+    dibujo.fillRect(this.x,this.y-=10,10,30)
+  }
+}
+let recarge = performance.now()
+function ready(){
+  if(recarge<performance.now()){
+    recarge = performance.now()+100
+    return true
+    } else {
+    return false
+  }
+}
+function shootColision(shoot){
+  for(i=1;i<clouds.length;i++){
+    if(shoot.y<clouds[i].y+(clouds[i].size*2)-10 && shoot.x>=clouds[i].x && shoot.x<=clouds[i].x+(clouds[i].size*2)){
+      console.log('cloud.x:' ,clouds[i].x)
+      console.log('shoot.x:' ,shoot.x)
+      return i
+    }
+  }
+  return -1
+}
+function handlePlayerShoots(){
+  if(pressedControls.space && ready()) shoots.push(new shoot(character.x+(character.width/2),character.y),(powerUp? 20:10))
+  shoots = shoots.flatMap((shoot) =>{
+    let x = shootColision(shoot)
+    if(shoot.y>-100){
+      shoot.draw()
+      if(x>-1){
+        clouds[x].life-=34
+        return []
+      } else {
+        return [shoot]
+      }
+    } else {
+      return []
+    }
+  })
 }
 function handleLevel(){
   if(levelStage>=limit){
@@ -160,7 +203,7 @@ const lifeBar = {
   }
 }
 //////////////////////////////////////////////////////////////////////////////////////////////
-
+ 
 ////////////////////////////RECARGAR LA PANTALLA//////////////////////////////////////////////
 function render(){
   if(game) requestAnimationFrame(render);
@@ -169,10 +212,20 @@ function render(){
   handleLevel()
   stackDrops()
   drawDrops()
+  handlePlayerShoots()
   character.check()
   character.draw()
   character.physics()
-  clouds.forEach(Cloud => Cloud.draw())
+  clouds = clouds.flatMap( (Cloud) => {
+    if(Cloud.life>0){
+      Cloud.draw()
+      return [Cloud]
+    } else {
+      console.log(Cloud)
+      return []
+    }
+  })
+  // clouds.forEach((Cloud) => Cloud.draw())
   dibujo.fillStyle = '#000'
   dibujo.fillText(level,20,50)
   dibujo.fillText(levelStage,20,100)
@@ -183,7 +236,7 @@ function render(){
   ////////////////////////////MOVIMIENTO DEL JUGADOR //////////////////////////////////////////
 function init(){
   for(i=0;i<100;i++){
-    clouds.push(new Cloud(random(0,hoja.width),random(0,100),random(50,90)));
+     clouds.push(new Cloud(random(0,hoja.width),random(0,100),random(50,90),random(100,200)));
   }
   dibujo.font= '48px sans-serif'
   document.addEventListener('keydown',handleKeyDown)
